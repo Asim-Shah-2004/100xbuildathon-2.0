@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "framer-motion": "^12.15.0",
-    "react-simple-typewriter": "^5.0.1"
+    "react-simple-typewriter": "^5.0.1",
+    "react-pdf": "^7.7.0"
   }
 }

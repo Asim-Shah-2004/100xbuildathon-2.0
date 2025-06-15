@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 from services.chat_service import ChatService
 from services.insights_service import InsightsService
 import os
@@ -93,5 +93,24 @@ def get_tables():
     try:
         tables = chat_service.get_all_tables()
         return jsonify({"tables": tables})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@chat_bp.route('/highlighted-pdf/<path:filename>', methods=['GET'])
+def get_highlighted_pdf(filename):
+    try:
+        # Ensure the filename is secure
+        secure_name = secure_filename(os.path.basename(filename))
+        pdf_path = os.path.join(os.path.dirname(__file__), '..', 'highlighted_resumes', secure_name)
+        
+        if not os.path.exists(pdf_path):
+            return jsonify({"error": "PDF not found"}), 404
+            
+        return send_file(
+            pdf_path,
+            mimetype='application/pdf',
+            as_attachment=False,
+            download_name=secure_name
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500 

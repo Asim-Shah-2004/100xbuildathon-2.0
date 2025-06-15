@@ -5,6 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { User, X, BarChart2, ChevronDown } from "lucide-react";
 import axios from "axios";
 import { useSearchParams } from "react-router-dom";
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+// Set up PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 const TableDropdown = ({ tables, selectedTable, onSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -77,6 +83,8 @@ const Dashboard = () => {
   const [tableName, setTableName] = useState("");
   const [availableTables, setAvailableTables] = useState([]);
   const [searchParams] = useSearchParams();
+  const [numPages, setNumPages] = useState(null);
+  const [pageNumber, setPageNumber] = useState(1);
 
   useEffect(() => {
     fetchTableName();
@@ -344,6 +352,16 @@ const Dashboard = () => {
     }
 
     return charts;
+  };
+
+  const onDocumentLoadSuccess = ({ numPages }) => {
+    setNumPages(numPages);
+  };
+
+  const getHighlightedPdfUrl = (path) => {
+    if (!path) return null;
+    const filename = path.split('/').pop();
+    return `${import.meta.env.VITE_BACKEND_URL}/highlighted-pdf/${filename}`;
   };
 
   if (loading) {
@@ -626,6 +644,50 @@ const Dashboard = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* Highlighted Resume PDF Viewer */}
+                  {selectedCandidate.highlighted_pdf && (
+                    <Card className="bg-[#000000] border-[#808080]/20 col-span-2">
+                      <CardContent className="p-6">
+                        <h3 className="text-xl font-semibold text-[#FFFFFF] mb-4">Highlighted Resume</h3>
+                        <div className="flex flex-col items-center">
+                          <Document
+                            file={getHighlightedPdfUrl(selectedCandidate.highlighted_pdf)}
+                            onLoadSuccess={onDocumentLoadSuccess}
+                            className="max-w-full"
+                          >
+                            <Page
+                              pageNumber={pageNumber}
+                              renderTextLayer={true}
+                              renderAnnotationLayer={true}
+                              className="max-w-full"
+                            />
+                          </Document>
+                          {numPages && (
+                            <div className="flex items-center gap-4 mt-4">
+                              <button
+                                onClick={() => setPageNumber(Math.max(1, pageNumber - 1))}
+                                disabled={pageNumber <= 1}
+                                className="px-4 py-2 bg-[#FFFFFF]/10 text-[#FFFFFF] rounded-lg disabled:opacity-50"
+                              >
+                                Previous
+                              </button>
+                              <span className="text-[#FFFFFF]">
+                                Page {pageNumber} of {numPages}
+                              </span>
+                              <button
+                                onClick={() => setPageNumber(Math.min(numPages, pageNumber + 1))}
+                                disabled={pageNumber >= numPages}
+                                className="px-4 py-2 bg-[#FFFFFF]/10 text-[#FFFFFF] rounded-lg disabled:opacity-50"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </div>
             </motion.div>
