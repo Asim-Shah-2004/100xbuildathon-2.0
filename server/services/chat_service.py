@@ -22,13 +22,17 @@ import uuid
 from datetime import datetime
 from composio_openai import ComposioToolSet
 from composio import App, Action
+import fitz  # PyMuPDF for PDF highlighting
 
 load_dotenv()
 
 TEMP_DIR = os.path.join(os.path.dirname(__file__), "..", "temp")
+HIGHLIGHTED_DIR = os.path.join(os.path.dirname(__file__), "..", "highlighted_resumes")
 
 if not os.path.exists(TEMP_DIR):
     os.makedirs(TEMP_DIR)
+if not os.path.exists(HIGHLIGHTED_DIR):
+    os.makedirs(HIGHLIGHTED_DIR)
 
 toolset = ComposioToolSet()
 
@@ -268,7 +272,7 @@ class ChatService:
                     - Add brief **interpretation/explanation** of the data in simple terms.
                     3. If the question involves candidate availability, communication status, or next steps, **answer conversationally** like an assistant helping an HR person.
                     4. If the question is about contacting or emailing the candidate, respond with:
-                    👉 “Yes, sending email to the candidate.”
+                    👉 "Yes, sending email to the candidate."
 
                     Please format the final answer like this:
                     ---
@@ -525,6 +529,10 @@ class ChatService:
             print(f"Step 2: Creating table {table_name} with columns: {columns}")
             connection = self._get_db_connection()
 
+            # Add highlighted_pdf_url column if not present
+            if "highlighted_pdf_url" not in [col.lower() for col in columns]:
+                columns.append("highlighted_pdf_url")
+
             try:
                 cursor = connection.cursor()
 
@@ -568,6 +576,18 @@ class ChatService:
                         candidate_info["score"] = str(score)
                         print(f"Match score: {score}")
 
+                        # Download the PDF for highlighting
+                        temp_pdf_path = os.path.join(TEMP_DIR, f"{uuid.uuid4()}_resume.pdf")
+                        response = requests.get(row["pdf_url"])
+                        with open(temp_pdf_path, "wb") as temp_pdf:
+                            temp_pdf.write(response.content)
+
+                        # Highlight relevant fields in the PDF
+                        highlighted_pdf_filename = f"{uuid.uuid4()}_highlighted.pdf"
+                        highlighted_pdf_path = os.path.join(HIGHLIGHTED_DIR, highlighted_pdf_filename)
+                        self.highlight_pdf_fields(temp_pdf_path, candidate_info, highlighted_pdf_path)
+                        candidate_info["highlighted_pdf_url"] = highlighted_pdf_filename
+
                         insert_columns = ", ".join([f'"{col}"' for col in columns])
                         placeholders = ", ".join(["%s"] * len(columns))
                         insert_sql = f'INSERT INTO "{table_name}" ({insert_columns}) VALUES ({placeholders})'
@@ -585,6 +605,10 @@ class ChatService:
                         connection.commit()
                         processed_count += 1
                         print(f"Candidate {index + 1} processed successfully")
+
+                        # Clean up temp files
+                        if os.path.exists(temp_pdf_path):
+                            os.remove(temp_pdf_path)
 
                     except Exception as candidate_error:
                         print(
@@ -1063,3 +1087,42 @@ class ChatService:
         # result = toolset.handle_tool_calls(response)
         # print(result)
         # return result
+
+    def highlight_pdf_fields(self, pdf_path, extracted_fields, output_path=None):
+        """
+        Highlights the values of extracted_fields in the PDF at pdf_path.
+        Each field gets a different color. Returns the path to the highlighted PDF.
+        - Uses case-insensitive search.
+        - Skips empty or very short values.
+        """
+        import random
+        color_palette = [
+            (1, 1, 0),    # Yellow
+            (0, 1, 1),    # Cyan
+            (1, 0, 1),    # Magenta
+            (1, 0.5, 0),  # Orange
+            (0.5, 1, 0),  # Light Green
+            (0.5, 0.5, 1),# Light Blue
+            (1, 0.8, 0.2) # Gold
+        ]
+        field_colors = {}
+        for i, key in enumerate(extracted_fields.keys()):
+            field_colors[key] = color_palette[i % len(color_palette)]
+
+        doc = fitz.open(pdf_path)
+        for field, value in extracted_fields.items():
+            if not value or not isinstance(value, str) or len(value.strip()) < 3:
+                continue
+            color = field_colors[field]
+            for page in doc:
+                # Case-insensitive search for all occurrences
+                text_instances = page.search_for(value, quads=True, flags=fitz.TEXT_DEHYPHENATE | fitz.TEXT_IGNORECASE)
+                for inst in text_instances:
+                    highlight = page.add_highlight_annot(inst.rects)
+                    highlight.set_colors(stroke=color)
+                    highlight.update()
+        if not output_path:
+            output_path = pdf_path.replace('.pdf', '_highlighted.pdf')
+        doc.save(output_path, garbage=4, deflate=True)
+        doc.close()
+        return output_path

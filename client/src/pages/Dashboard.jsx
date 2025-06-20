@@ -627,6 +627,27 @@ const Dashboard = () => {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Highlighted Resume Button and Color Legend */}
+                {selectedCandidate.highlighted_pdf_url && (
+                  <div className="mt-8 flex flex-col items-center">
+                    <a
+                      href={`${import.meta.env.VITE_BACKEND_URL}/highlighted_resume/${selectedCandidate.highlighted_pdf_url}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-6 py-3 bg-[#FFD600] text-[#000] rounded-lg font-semibold shadow hover:bg-[#FFEA70] transition mb-4"
+                    >
+                      View Highlighted Resume (PDF)
+                    </a>
+                    <div className="flex flex-wrap gap-4 justify-center mt-2">
+                      <div className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-yellow-300 inline-block"></span><span className="text-[#fff] text-sm">Name/Email</span></div>
+                      <div className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-cyan-300 inline-block"></span><span className="text-[#fff] text-sm">Skills</span></div>
+                      <div className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-pink-400 inline-block"></span><span className="text-[#fff] text-sm">Experience</span></div>
+                      <div className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-orange-400 inline-block"></span><span className="text-[#fff] text-sm">Education</span></div>
+                      {/* Add more legend items if needed */}
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>

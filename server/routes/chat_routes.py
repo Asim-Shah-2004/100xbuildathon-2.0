@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_from_directory
 from services.chat_service import ChatService
 from services.insights_service import InsightsService
 from services.peoples_api import PeoplesApi
@@ -15,6 +15,8 @@ chat_bp = Blueprint("chat", __name__)
 chat_service = ChatService()
 insights_service = InsightsService()
 peoples_api = PeoplesApi()
+
+HIGHLIGHTED_DIR = os.path.join(os.path.dirname(__file__), "..", "highlighted_resumes")
 
 
 @chat_bp.route("/insights", methods=["GET"])
@@ -199,3 +201,11 @@ def chat_to_elastic():
         return jsonify(peoples_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@chat_bp.route("/highlighted_resume/<filename>", methods=["GET"])
+def get_highlighted_resume(filename):
+    try:
+        return send_from_directory(HIGHLIGHTED_DIR, filename)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 404
