@@ -147,4 +147,27 @@ export const getChatHistory = async (user_id, tableName) => {
     } catch (error) {
         throw error;
     }
+};
+
+export const sendGlobalChatMessage = async (prompt) => {
+    try {
+        const response = await fetch(`${BACKEND_URL}/chat/2`, {
+            method: 'POST',
+            headers: {
+                ...commonHeaders,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt }),
+            ...commonOptions,
+        });
+        if (!response.ok) {
+            throw new Error('Failed to send global message');
+        }
+        const data = await response.json();
+        // data.response (string)
+        return data.response;
+    } catch (error) {
+        console.error('Error sending global message:', error);
+        throw error;
+    }
 }; 

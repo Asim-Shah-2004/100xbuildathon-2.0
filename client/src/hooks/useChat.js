@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { createNewChat, sendChatMessage, getTables, getChatHistory } from '../services/api';
+import { createNewChat, sendChatMessage, getTables, getChatHistory, sendGlobalChatMessage } from '../services/api';
 import { generateTableName } from '../config/constants';
 import { toast } from 'sonner';
 import posthog from 'posthog-js';
@@ -16,6 +16,7 @@ export const useChat = () => {
   const [roleName, setRoleName] = useState('');
   const [jdFile, setJdFile] = useState(null);
   const [candidatesFile, setCandidatesFile] = useState(null);
+  const [mode, setMode] = useState('database'); // 'database' or 'global'
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -166,40 +167,50 @@ export const useChat = () => {
     setActiveChat(updatedChat);
 
     try {
+      let aiMessage;
+      if (mode === 'global') {
+        // Use /chat/2 endpoint
+        const response = await sendGlobalChatMessage(messageText);
+        aiMessage = {
+          id: loadingMessage.id,
+          type: 'ai',
+          content: response,
+          isLoading: false,
+          timestamp: new Date().toLocaleTimeString()
+        };
+      } else {
+        // Use /chat endpoint (database mode)
         const response = await sendChatMessage(activeChat.tableName, messageText);
-        // response: { result, followups }
-        const aiMessage = {
-            id: loadingMessage.id,
-            type: 'ai',
-            content: response.result,
-            followups: response.followups,
-            isLoading: false,
-            timestamp: new Date().toLocaleTimeString()
+        aiMessage = {
+          id: loadingMessage.id,
+          type: 'ai',
+          content: response.result,
+          followups: response.followups,
+          isLoading: false,
+          timestamp: new Date().toLocaleTimeString()
         };
+      }
 
-        const finalChat = {
-            ...updatedChat,
-            messages: [...updatedChat.messages.slice(0, -1), aiMessage]
-        };
+      const finalChat = {
+        ...updatedChat,
+        messages: [...updatedChat.messages.slice(0, -1), aiMessage]
+      };
 
-        setChats(prev => prev.map(chat => 
-            chat.id === activeChat.id ? finalChat : chat
-        ));
-        setActiveChat(finalChat);
-        return response.followups;
+      setChats(prev => prev.map(chat => 
+        chat.id === activeChat.id ? finalChat : chat
+      ));
+      setActiveChat(finalChat);
+      return aiMessage.followups;
     } catch (error) {
-        console.error('Failed to get response:', error);
-        // Remove loading message on error
-        const finalChat = {
-            ...updatedChat,
-            messages: updatedChat.messages.slice(0, -1)
-        };
-        
-        setChats(prev => prev.map(chat => 
-            chat.id === activeChat.id ? finalChat : chat
-        ));
-        setActiveChat(finalChat);
-        throw error;
+      console.error('Failed to get response:', error);
+      // Remove loading message on error
+      const finalChat = {
+        ...updatedChat,
+        messages: updatedChat.messages.slice(0, -1)
+      };
+      setChats(prev => prev.map(chat => 
+        chat.id === activeChat.id ? finalChat : chat
+      ));
     }
   };
 
@@ -255,7 +266,9 @@ export const useChat = () => {
     setJdFile,
     setCandidatesFile,
     createNewChat: createNewChatSession,
-    sendMessage
+    sendMessage,
+    mode,
+    setMode
   };
 };
 
